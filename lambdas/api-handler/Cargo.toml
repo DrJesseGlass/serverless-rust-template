@@ -1,0 +1,21 @@
+[package]
+name = "api-handler"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+aws-config.workspace = true
+aws-sdk-dynamodb.workspace = true
+aws-sdk-s3.workspace = true
+lambda_runtime.workspace = true
+aws_lambda_events.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+shared.workspace = true

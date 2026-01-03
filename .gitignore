@@ -1,0 +1,33 @@
+# Rust
+/lambdas/target/
+**/*.rs.bk
+
+# Node
+/frontend/node_modules/
+/frontend/dist/
+
+# Terraform
+/infra/.terraform/
+/infra/*.tfstate
+/infra/*.tfstate.*
+/infra/.terraform.lock.hcl
+/infra/tfplan
+/infra/terraform.tfvars
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
