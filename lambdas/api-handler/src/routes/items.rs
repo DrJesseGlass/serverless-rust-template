@@ -14,22 +14,39 @@ pub struct CreateItemRequest {
     pub description: Option<String>,
 }
 
+impl CreateItemRequest {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.name.is_empty() || self.name.len() > 256 {
+            return Err("Name must be 1-256 characters");
+        }
+        if let Some(desc) = &self.description {
+            if desc.len() > 4096 {
+                return Err("Description must be under 4096 characters");
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct ListItemsResponse {
     pub items: Vec<Item>,
     pub count: usize,
 }
 
-pub async fn list(
-    state: &AppState,
-    _request: &ApiGatewayV2httpRequest,
-) -> ApiGatewayV2httpResponse {
-    let result = state
-        .dynamo
-        .query()
+pub async fn list(state: &AppState, request: &ApiGatewayV2httpRequest) -> ApiGatewayV2httpResponse {
+    let limit = request
+        .query_string_parameters
+        .first("limit")
+        .and_then(|l| l.parse::<i32>().ok())
+        .unwrap_or(50)
+        .clamp(1, 100); 
+
+    let result = state.dynamo.query()
         .table_name(&state.config.table_name)
         .key_condition_expression("pk = :pk")
         .expression_attribute_values(":pk", AttributeValue::S("ITEM".to_string()))
+        .limit(limit)
         .send()
         .await;
 
@@ -66,10 +83,12 @@ pub async fn create(
 
     let create_req: CreateItemRequest = match serde_json::from_str(body) {
         Ok(req) => req,
-        Err(e) => {
-            return json_response(400, &ApiResponse::<()>::error(format!("Invalid JSON: {e}")))
-        }
+        Err(e) => return json_response(400, &ApiResponse::<()>::error(format!("Invalid JSON: {e}"))),
     };
+
+    if let Err(e) = create_req.validate() {
+        return json_response(400, &ApiResponse::<()>::error(e));
+    }
 
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
