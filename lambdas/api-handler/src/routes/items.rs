@@ -40,9 +40,11 @@ pub async fn list(state: &AppState, request: &ApiGatewayV2httpRequest) -> ApiGat
         .first("limit")
         .and_then(|l| l.parse::<i32>().ok())
         .unwrap_or(50)
-        .clamp(1, 100); 
+        .clamp(1, 100);
 
-    let result = state.dynamo.query()
+    let result = state
+        .dynamo
+        .query()
         .table_name(&state.config.table_name)
         .key_condition_expression("pk = :pk")
         .expression_attribute_values(":pk", AttributeValue::S("ITEM".to_string()))
@@ -83,7 +85,9 @@ pub async fn create(
 
     let create_req: CreateItemRequest = match serde_json::from_str(body) {
         Ok(req) => req,
-        Err(e) => return json_response(400, &ApiResponse::<()>::error(format!("Invalid JSON: {e}"))),
+        Err(e) => {
+            return json_response(400, &ApiResponse::<()>::error(format!("Invalid JSON: {e}")))
+        }
     };
 
     if let Err(e) = create_req.validate() {
