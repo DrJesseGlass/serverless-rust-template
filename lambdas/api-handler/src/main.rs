@@ -50,7 +50,10 @@ pub fn json_response<T: Serialize>(
     let mut headers = HeaderMap::new();
     headers.insert("content-type", "application/json".parse().unwrap());
     let allowed_origin = std::env::var("ALLOWED_ORIGIN").unwrap_or_else(|_| "*".to_string());
-    headers.insert("access-control-allow-origin", allowed_origin.parse().unwrap());
+    headers.insert(
+        "access-control-allow-origin",
+        allowed_origin.parse().unwrap(),
+    );
     headers.insert(
         "access-control-allow-methods",
         "GET, POST, PUT, DELETE, OPTIONS".parse().unwrap(),
@@ -84,8 +87,12 @@ async fn router(
     let response = match (method, path) {
         ("OPTIONS", _) => {
             let mut headers = HeaderMap::new();
-            let allowed_origin = std::env::var("ALLOWED_ORIGIN").unwrap_or_else(|_| "*".to_string());
-            headers.insert("access-control-allow-origin", allowed_origin.parse().unwrap());
+            let allowed_origin =
+                std::env::var("ALLOWED_ORIGIN").unwrap_or_else(|_| "*".to_string());
+            headers.insert(
+                "access-control-allow-origin",
+                allowed_origin.parse().unwrap(),
+            );
             headers.insert(
                 "access-control-allow-methods",
                 "GET, POST, PUT, DELETE, OPTIONS".parse().unwrap(),
