@@ -16,6 +16,7 @@ resource "aws_lambda_function" "api" {
       RUST_LOG       = "info"
       TABLE_NAME     = aws_dynamodb_table.main.name
       STORAGE_BUCKET = aws_s3_bucket.storage.bucket
+      ALLOWED_ORIGIN = "https://${aws_cloudfront_distribution.frontend.domain_name}"
     }
   }
 
@@ -32,7 +33,7 @@ resource "aws_apigatewayv2_api" "main" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = ["*"]
+    allow_origins = ["https://${aws_cloudfront_distribution.frontend.domain_name}"]
     allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     allow_headers = ["Content-Type", "Authorization"]
     max_age       = 3600
