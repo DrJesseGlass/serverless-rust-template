@@ -19,3 +19,4 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 shared.workspace = true
+jsonwebtoken.workspace = true
