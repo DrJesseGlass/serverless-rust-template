@@ -40,7 +40,7 @@ pub async fn list(state: &AppState, request: &ApiGatewayV2httpRequest) -> ApiGat
         .first("limit")
         .and_then(|l| l.parse::<i32>().ok())
         .unwrap_or(50)
-        .min(100);  // Cap at 100
+        .clamp(1, 100); 
 
     let result = state.dynamo.query()
         .table_name(&state.config.table_name)
