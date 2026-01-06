@@ -64,29 +64,22 @@ resource "aws_cognito_user_pool_domain" "main" {
   user_pool_id = aws_cognito_user_pool.main.id
 }
 
-# Google Identity Provider (optional - configure if you have Google OAuth credentials)
-# To enable:
-# 1. Create OAuth credentials at https://console.cloud.google.com/apis/credentials
-# 2. Set authorized redirect URI to: https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com/oauth2/idpresponse
-# 3. Uncomment this resource and set the client_id and client_secret via variables
+resource "aws_cognito_identity_provider" "google" {
+  user_pool_id  = aws_cognito_user_pool.main.id
+  provider_name = "Google"
+  provider_type = "Google"
 
-# resource "aws_cognito_identity_provider" "google" {
-#   user_pool_id  = aws_cognito_user_pool.main.id
-#   provider_name = "Google"
-#   provider_type = "Google"
-#
-#   provider_details = {
-#     client_id        = var.google_client_id
-#     client_secret    = var.google_client_secret
-#     authorize_scopes = "email profile openid"
-#   }
-#
-#   attribute_mapping = {
-#     email    = "email"
-#     name     = "name"
-#     username = "sub"
-#   }
-# }
+  provider_details = {
+    client_id        = var.google_client_id
+    client_secret    = var.google_client_secret
+    authorize_scopes = "email profile openid"
+  }
+  attribute_mapping = {
+    email    = "email"
+    name     = "name"
+    username = "sub"
+  }
+}
 
 # Cognito User Pool Client (for frontend)
 resource "aws_cognito_user_pool_client" "frontend" {
