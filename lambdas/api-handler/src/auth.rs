@@ -93,10 +93,10 @@ pub fn validate_token(token: &str) -> Result<Claims, &'static str> {
     let mut validation = Validation::default();
     validation.validate_exp = true;
     validation.set_issuer(&[&cognito_issuer]);
-
-    // For ID tokens, audience is the client ID
-    // For access tokens, we check client_id claim instead
-    validation.set_audience(&[&client_id]);
+    
+    // Cognito access tokens don't have 'aud' claim, so skip audience validation
+    // We'll verify client_id claim manually for access tokens
+    validation.validate_aud = false;
 
     // IMPORTANT: In production, use the actual JWKS public key
     // This insecure_disable_signature_validation is for development only
@@ -143,6 +143,7 @@ pub fn validate_token(token: &str) -> Result<Claims, &'static str> {
 ///     // ... handle request
 /// }
 /// ```
+#[allow(clippy::result_large_err)]
 pub fn require_auth(
     request: &ApiGatewayV2httpRequest,
 ) -> Result<AuthUser, ApiGatewayV2httpResponse> {

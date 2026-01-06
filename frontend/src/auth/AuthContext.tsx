@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
 // Auth configuration - loaded from environment
 const AUTH_CONFIG = {
@@ -30,6 +30,7 @@ interface AuthContextType {
   getAccessToken: () => string | null;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Token storage keys
