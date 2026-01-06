@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use aws_lambda_events::apigw::{ApiGatewayV2httpRequest, ApiGatewayV2httpResponse};
 use jsonwebtoken::{decode, decode_header, DecodingKey, TokenData, Validation};
 use serde::{Deserialize, Serialize};
@@ -146,7 +149,7 @@ pub fn require_auth(
     let token =
         extract_token(request).ok_or_else(|| unauthorized("Missing authorization header"))?;
 
-    let claims = validate_token(token).map_err(|e| unauthorized(e))?;
+    let claims = validate_token(token).map_err(unauthorized)?;
 
     Ok(AuthUser::from(claims))
 }
@@ -162,8 +165,6 @@ pub fn optional_auth(request: &ApiGatewayV2httpRequest) -> Option<AuthUser> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_extract_token() {
         // This would require mocking the request
