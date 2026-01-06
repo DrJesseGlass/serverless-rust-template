@@ -93,7 +93,7 @@ pub fn validate_token(token: &str) -> Result<Claims, &'static str> {
     let mut validation = Validation::default();
     validation.validate_exp = true;
     validation.set_issuer(&[&cognito_issuer]);
-    
+
     // Cognito access tokens don't have 'aud' claim, so skip audience validation
     // We'll verify client_id claim manually for access tokens
     validation.validate_aud = false;
