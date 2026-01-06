@@ -170,6 +170,40 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         Resource = [
           "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
         ]
+      },
+      {
+        Sid    = "CognitoAccess"
+        Effect = "Allow"
+        Action = [
+          "cognito-idp:DescribeUserPool",
+          "cognito-idp:UpdateUserPool",
+          "cognito-idp:DescribeUserPoolClient",
+          "cognito-idp:UpdateUserPoolClient",
+          "cognito-idp:DescribeUserPoolDomain",
+          "cognito-idp:DescribeIdentityProvider",
+          "cognito-idp:UpdateIdentityProvider",
+          "cognito-idp:ListTagsForResource",
+          "cognito-idp:TagResource",
+          "cognito-idp:UntagResource"
+        ]
+        Resource = [
+          "arn:aws:cognito-idp:${var.aws_region}:${data.aws_caller_identity.current.account_id}:userpool/*"
+        ]
+      },
+      {
+        Sid    = "CognitoCreate"
+        Effect = "Allow"
+        Action = [
+          "cognito-idp:CreateUserPool",
+          "cognito-idp:CreateUserPoolClient",
+          "cognito-idp:CreateUserPoolDomain",
+          "cognito-idp:CreateIdentityProvider",
+          "cognito-idp:DeleteUserPool",
+          "cognito-idp:DeleteUserPoolClient",
+          "cognito-idp:DeleteUserPoolDomain",
+          "cognito-idp:DeleteIdentityProvider"
+        ]
+        Resource = "*"
       }
     ]
   })
