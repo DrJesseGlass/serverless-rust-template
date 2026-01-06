@@ -30,7 +30,7 @@ interface AuthContextType {
   getAccessToken: () => string | null;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Token storage keys
 const ACCESS_TOKEN_KEY = 'auth_access_token';
@@ -208,10 +208,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-}
