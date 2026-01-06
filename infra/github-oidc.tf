@@ -179,7 +179,6 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "cognito-idp:UpdateUserPool",
           "cognito-idp:DescribeUserPoolClient",
           "cognito-idp:UpdateUserPoolClient",
-          "cognito-idp:DescribeUserPoolDomain",
           "cognito-idp:DescribeIdentityProvider",
           "cognito-idp:UpdateIdentityProvider",
           "cognito-idp:GetUserPoolMfaConfig",
@@ -203,7 +202,8 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "cognito-idp:DeleteUserPool",
           "cognito-idp:DeleteUserPoolClient",
           "cognito-idp:DeleteUserPoolDomain",
-          "cognito-idp:DeleteIdentityProvider"
+          "cognito-idp:DeleteIdentityProvider",
+          "cognito-idp:DescribeUserPoolDomain"
         ]
         Resource = "*"
       }
