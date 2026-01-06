@@ -182,6 +182,8 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "cognito-idp:DescribeUserPoolDomain",
           "cognito-idp:DescribeIdentityProvider",
           "cognito-idp:UpdateIdentityProvider",
+          "cognito-idp:GetUserPoolMfaConfig",
+          "cognito-idp:SetUserPoolMfaConfig",
           "cognito-idp:ListTagsForResource",
           "cognito-idp:TagResource",
           "cognito-idp:UntagResource"
