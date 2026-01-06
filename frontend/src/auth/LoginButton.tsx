@@ -1,4 +1,4 @@
-import { useAuth } from './AuthContext';
+import { useAuth } from './useAuth';
 
 export function LoginButton() {
   const { isAuthenticated, isLoading, isConfigured, user, login, logout } = useAuth();

@@ -75,7 +75,7 @@ pub fn validate_token(token: &str) -> Result<Claims, &'static str> {
     let cognito_issuer =
         std::env::var("COGNITO_ISSUER").map_err(|_| "COGNITO_ISSUER not configured")?;
 
-    let client_id =
+    let _client_id =
         std::env::var("COGNITO_CLIENT_ID").map_err(|_| "COGNITO_CLIENT_ID not configured")?;
 
     // Decode header to get the key ID
