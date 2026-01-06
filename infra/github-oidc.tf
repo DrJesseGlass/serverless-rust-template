@@ -175,24 +175,33 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         Sid    = "CognitoAccess"
         Effect = "Allow"
         Action = [
-          "cognito-idp:CreateUserPool",
-          "cognito-idp:DeleteUserPool",
           "cognito-idp:DescribeUserPool",
           "cognito-idp:UpdateUserPool",
-          "cognito-idp:CreateUserPoolClient",
-          "cognito-idp:DeleteUserPoolClient",
           "cognito-idp:DescribeUserPoolClient",
           "cognito-idp:UpdateUserPoolClient",
-          "cognito-idp:CreateUserPoolDomain",
-          "cognito-idp:DeleteUserPoolDomain",
           "cognito-idp:DescribeUserPoolDomain",
-          "cognito-idp:CreateIdentityProvider",
-          "cognito-idp:DeleteIdentityProvider",
           "cognito-idp:DescribeIdentityProvider",
           "cognito-idp:UpdateIdentityProvider",
           "cognito-idp:ListTagsForResource",
           "cognito-idp:TagResource",
           "cognito-idp:UntagResource"
+        ]
+        Resource = [
+          "arn:aws:cognito-idp:${var.aws_region}:${data.aws_caller_identity.current.account_id}:userpool/*"
+        ]
+      },
+      {
+        Sid    = "CognitoCreate"
+        Effect = "Allow"
+        Action = [
+          "cognito-idp:CreateUserPool",
+          "cognito-idp:CreateUserPoolClient",
+          "cognito-idp:CreateUserPoolDomain",
+          "cognito-idp:CreateIdentityProvider",
+          "cognito-idp:DeleteUserPool",
+          "cognito-idp:DeleteUserPoolClient",
+          "cognito-idp:DeleteUserPoolDomain",
+          "cognito-idp:DeleteIdentityProvider"
         ]
         Resource = "*"
       }
