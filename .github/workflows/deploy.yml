@@ -208,8 +208,10 @@ jobs:
         run: |
           cd infra
           terraform plan -out=tfplan \
-            -var="github_repo=YOUR_USERNAME/YOUR_REPO" \
-            -var="terraform_state_bucket=YOUR-TFSTATE-BUCKET"
+            -var="github_repo=DrJesseGlass/trialstream" \
+            -var="terraform_state_bucket=trialstream-tfstate-1767404554" \
+            -var="google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" \
+            -var="google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
 
       - name: Terraform Apply
         run: |
