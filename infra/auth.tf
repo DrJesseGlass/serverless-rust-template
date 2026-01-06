@@ -115,8 +115,7 @@ resource "aws_cognito_user_pool_client" "frontend" {
   ]
 
   # Supported identity providers
-  supported_identity_providers = ["COGNITO"]
-  # Add "Google" to this list after uncommenting the google provider above
+  supported_identity_providers = ["COGNITO", "Google"]
 
   # Auth flows
   explicit_auth_flows = [
