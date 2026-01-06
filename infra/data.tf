@@ -86,6 +86,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "storage" {
     id     = "archive-old-objects"
     status = "Enabled"
 
+    filter {} #empty filter applies to all objects
+    
     transition {
       days          = 90
       storage_class = "STANDARD_IA"
