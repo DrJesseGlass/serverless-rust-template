@@ -38,3 +38,16 @@ variable "terraform_state_bucket" {
   description = "S3 bucket name for Terraform state"
   type        = string
 }
+
+variable "google_client_id" {
+  description = "Google OAuth Client ID"
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth Client Secret"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

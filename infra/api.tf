@@ -17,6 +17,8 @@ resource "aws_lambda_function" "api" {
       TABLE_NAME     = aws_dynamodb_table.main.name
       STORAGE_BUCKET = aws_s3_bucket.storage.bucket
       ALLOWED_ORIGIN = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+      COGNITO_ISSUER    = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
+      COGNITO_CLIENT_ID = aws_cognito_user_pool_client.frontend.id
     }
   }
 

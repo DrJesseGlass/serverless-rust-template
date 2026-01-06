@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { LoginButton, useAuth, api } from './auth'
 
 interface Item {
   id: string
@@ -14,9 +15,8 @@ interface ApiResponse<T> {
   error?: string
 }
 
-const API_URL = import.meta.env.VITE_API_URL || ''
-
 function App() {
+  const { isAuthenticated, user } = useAuth()
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -25,7 +25,7 @@ function App() {
   const [health, setHealth] = useState<{ status: string; version: string } | null>(null)
 
   useEffect(() => {
-    fetch(`${API_URL}/health`)
+    api('/health')
       .then((res) => res.json())
       .then((data: ApiResponse<{ status: string; version: string }>) => {
         if (data.success && data.data) setHealth(data.data)
@@ -38,7 +38,7 @@ function App() {
   async function fetchItems() {
     try {
       setLoading(true)
-      const res = await fetch(`${API_URL}/items`)
+      const res = await api('/items')
       const data: ApiResponse<{ items: Item[]; count: number }> = await res.json()
       if (data.success && data.data) setItems(data.data.items)
       else setError(data.error || 'Failed to fetch items')
@@ -53,9 +53,8 @@ function App() {
     e.preventDefault()
     if (!newItemName.trim()) return
     try {
-      const res = await fetch(`${API_URL}/items`, {
+      const res = await api('/items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newItemName, description: newItemDescription || undefined }),
       })
       const data: ApiResponse<Item> = await res.json()
@@ -71,7 +70,7 @@ function App() {
 
   async function deleteItem(id: string) {
     try {
-      await fetch(`${API_URL}/items/${id}`, { method: 'DELETE' })
+      await api(`/items/${id}`, { method: 'DELETE' })
       setItems(items.filter((item) => item.id !== id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete item')
@@ -81,9 +80,16 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-100 py-8">
       <div className="max-w-2xl mx-auto px-4">
+        {/* Header with auth */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Trialstream</h1>
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-2xl font-bold text-gray-800">My App</h1>
+            <LoginButton />
+          </div>
           {health && <p className="text-sm text-green-600">API: {health.status} (v{health.version})</p>}
+          {isAuthenticated && user && (
+            <p className="text-sm text-blue-600 mt-1">Welcome, {user.name || user.email}!</p>
+          )}
         </div>
 
         {error && (

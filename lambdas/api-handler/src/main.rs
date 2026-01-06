@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use shared::config::AppConfig;
 use tracing::{info, instrument};
 
+mod auth;
 mod routes;
 
 pub struct AppState {
