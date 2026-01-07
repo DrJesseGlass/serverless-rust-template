@@ -1,5 +1,6 @@
 # Rust
 /lambdas/target/
+/core/target/
 **/*.rs.bk
 
 # Node
