@@ -13,8 +13,6 @@
 /infra/.terraform.lock.hcl
 /infra/tfplan
 /infra/terraform.tfvars
-/infra/terraform.dev.tfvars
-/infra/terraform.prod.tfvars
 
 # IDE
 .idea/
