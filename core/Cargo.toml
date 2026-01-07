@@ -1,5 +1,5 @@
 [package]
-name = "trialstream-core"
+name = "myapp-core"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,3 +14,11 @@ uniffi = { version = "0.28" }
 
 [build-dependencies]
 uniffi = { version = "0.28", features = ["build"] }
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["cli"]
+
+[features]
+cli = ["uniffi/cli"]
