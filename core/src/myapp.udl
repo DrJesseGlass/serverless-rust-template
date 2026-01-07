@@ -1,4 +1,4 @@
-namespace trialstream {
+namespace myapp {
   void initialize(ApiConfig config);
   void set_auth_tokens(AuthTokens tokens);
   void clear_auth();

@@ -1,3 +1,3 @@
 fn main() {
-    uniffi::generate_scaffolding("src/trialstream.udl").unwrap();
+    uniffi::generate_scaffolding("src/myapp.udl").unwrap();
 }
