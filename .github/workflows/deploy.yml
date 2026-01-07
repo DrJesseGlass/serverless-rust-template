@@ -2,9 +2,19 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
 
 env:
   AWS_REGION: us-east-1
@@ -17,6 +27,30 @@ permissions:
   contents: read
 
 jobs:
+  # ============================================
+  # Set environment based on branch
+  # ============================================
+  set-environment:
+    name: Set Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      is_deploy: ${{ steps.set-env.outputs.is_deploy }}
+    steps:
+      - name: Set environment
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "is_deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "is_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "is_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
   # ============================================
   # Test Rust Lambda code
   # ============================================
@@ -87,8 +121,8 @@ jobs:
   build-backend:
     name: Build Backend
     runs-on: ubuntu-latest
-    needs: test-backend
-    if: github.ref == 'refs/heads/main'
+    needs: [set-environment, test-backend]
+    if: needs.set-environment.outputs.is_deploy == 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +155,7 @@ jobs:
       - name: Upload Lambda artifact
         uses: actions/upload-artifact@v4
         with:
-          name: lambda-build
+          name: lambda-build-${{ needs.set-environment.outputs.environment }}
           path: lambdas/target/lambda/
           retention-days: 1
 
@@ -131,8 +165,8 @@ jobs:
   build-frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
-    needs: test-frontend
-    if: github.ref == 'refs/heads/main'
+    needs: [set-environment, test-frontend]
+    if: needs.set-environment.outputs.is_deploy == 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -157,7 +191,7 @@ jobs:
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-build
+          name: frontend-build-${{ needs.set-environment.outputs.environment }}
           path: frontend/dist/
           retention-days: 1
 
@@ -165,11 +199,11 @@ jobs:
   # Deploy infrastructure and code
   # ============================================
   deploy:
-    name: Deploy
+    name: Deploy (${{ needs.set-environment.outputs.environment }})
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    if: github.ref == 'refs/heads/main'
-    environment: production
+    needs: [set-environment, build-backend, build-frontend]
+    if: needs.set-environment.outputs.is_deploy == 'true'
+    environment: ${{ needs.set-environment.outputs.environment == 'prod' && 'production' || 'development' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -184,13 +218,13 @@ jobs:
       - name: Download Lambda artifact
         uses: actions/download-artifact@v4
         with:
-          name: lambda-build
+          name: lambda-build-${{ needs.set-environment.outputs.environment }}
           path: lambdas/target/lambda/
 
       - name: Download frontend artifact
         uses: actions/download-artifact@v4
         with:
-          name: frontend-build
+          name: frontend-build-${{ needs.set-environment.outputs.environment }}
           path: frontend/dist/
 
       - name: Setup Terraform
@@ -202,14 +236,14 @@ jobs:
       - name: Terraform Init
         run: |
           cd infra
-          terraform init
+          terraform init -reconfigure \
+            -backend-config="key=myapp/${{ needs.set-environment.outputs.environment }}/terraform.tfstate"
 
       - name: Terraform Plan
         run: |
           cd infra
           terraform plan -out=tfplan \
-            -var="github_repo=DrJesseGlass/trialstream" \
-            -var="terraform_state_bucket=trialstream-tfstate-1767404554" \
+            -var-file="terraform.${{ needs.set-environment.outputs.environment }}.tfvars" \
             -var="google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" \
             -var="google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
 
