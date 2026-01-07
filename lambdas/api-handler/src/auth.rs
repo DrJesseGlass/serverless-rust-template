@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 
 use aws_lambda_events::apigw::{ApiGatewayV2httpRequest, ApiGatewayV2httpResponse};
-use jsonwebtoken::{decode, decode_header, DecodingKey, TokenData, Validation, Algorithm};
+use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, TokenData, Validation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::RwLock;
-use tracing::{error, warn, info};
+use tracing::{error, info, warn};
 
 use crate::{json_response, ApiResponse};
 
@@ -82,20 +82,18 @@ fn extract_token(request: &ApiGatewayV2httpRequest) -> Option<&str> {
 /// Fetch JWKS from Cognito and cache it
 fn fetch_jwks(issuer: &str) -> Result<HashMap<String, DecodingKey>, &'static str> {
     let jwks_url = format!("{}/.well-known/jwks.json", issuer);
-    
+
     // Use blocking HTTP client (ureq is lightweight and works in Lambda)
-    let response = ureq::get(&jwks_url)
-        .call()
-        .map_err(|e| {
-            error!(error = %e, url = %jwks_url, "Failed to fetch JWKS");
-            "Failed to fetch JWKS"
-        })?;
-    
+    let response = ureq::get(&jwks_url).call().map_err(|e| {
+        error!(error = %e, url = %jwks_url, "Failed to fetch JWKS");
+        "Failed to fetch JWKS"
+    })?;
+
     let jwks: JwksResponse = response.into_json().map_err(|e| {
         error!(error = %e, "Failed to parse JWKS response");
         "Failed to parse JWKS"
     })?;
-    
+
     let mut keys = HashMap::new();
     for jwk in jwks.keys {
         if jwk.kty == "RSA" {
@@ -109,11 +107,11 @@ fn fetch_jwks(issuer: &str) -> Result<HashMap<String, DecodingKey>, &'static str
             }
         }
     }
-    
+
     if keys.is_empty() {
         return Err("No valid RSA keys in JWKS");
     }
-    
+
     info!(key_count = keys.len(), "Fetched and cached JWKS");
     Ok(keys)
 }
@@ -132,11 +130,11 @@ fn get_decoding_key(kid: &str, issuer: &str) -> Result<DecodingKey, &'static str
             }
         }
     }
-    
+
     // Fetch fresh JWKS
     let keys = fetch_jwks(issuer)?;
     let key = keys.get(kid).cloned().ok_or("Key ID not found in JWKS")?;
-    
+
     // Update cache
     {
         let mut cache = JWKS_CACHE.write().unwrap();
@@ -145,14 +143,14 @@ fn get_decoding_key(kid: &str, issuer: &str) -> Result<DecodingKey, &'static str
             fetched_at: std::time::Instant::now(),
         });
     }
-    
+
     Ok(key)
 }
 
 /// Validate JWT token and extract claims
 pub fn validate_token(token: &str) -> Result<Claims, &'static str> {
-    let cognito_issuer = std::env::var("COGNITO_ISSUER")
-        .map_err(|_| "COGNITO_ISSUER not configured")?;
+    let cognito_issuer =
+        std::env::var("COGNITO_ISSUER").map_err(|_| "COGNITO_ISSUER not configured")?;
 
     // Decode header to get the key ID
     let header = decode_header(token).map_err(|e| {
@@ -161,7 +159,7 @@ pub fn validate_token(token: &str) -> Result<Claims, &'static str> {
     })?;
 
     let kid = header.kid.ok_or("Token missing key ID")?;
-    
+
     // Get the decoding key (fetches JWKS if needed)
     let decoding_key = get_decoding_key(&kid, &cognito_issuer)?;
 
@@ -169,15 +167,14 @@ pub fn validate_token(token: &str) -> Result<Claims, &'static str> {
     let mut validation = Validation::new(Algorithm::RS256);
     validation.validate_exp = true;
     validation.set_issuer(&[&cognito_issuer]);
-    
+
     // Cognito access tokens don't have 'aud' claim
     validation.validate_aud = false;
 
-    let token_data: TokenData<Claims> = decode(token, &decoding_key, &validation)
-        .map_err(|e| {
-            error!(error = %e, "Failed to validate token");
-            "Invalid token"
-        })?;
+    let token_data: TokenData<Claims> = decode(token, &decoding_key, &validation).map_err(|e| {
+        error!(error = %e, "Failed to validate token");
+        "Invalid token"
+    })?;
 
     let claims = token_data.claims;
 
@@ -198,7 +195,8 @@ pub fn validate_token(token: &str) -> Result<Claims, &'static str> {
 pub fn require_auth(
     request: &ApiGatewayV2httpRequest,
 ) -> Result<AuthUser, ApiGatewayV2httpResponse> {
-    let token = extract_token(request).ok_or_else(|| unauthorized("Missing authorization header"))?;
+    let token =
+        extract_token(request).ok_or_else(|| unauthorized("Missing authorization header"))?;
 
     let claims = validate_token(token).map_err(unauthorized)?;
 
