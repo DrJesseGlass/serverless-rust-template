@@ -14,27 +14,30 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.myapp.ui.theme.TrialstreamTheme
+import com.example.myapp.ui.theme.myappTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.myapp.*
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 class MainActivity : ComponentActivity() {
     
     companion object {
         private const val TAG = "myapp"
         private const val REDIRECT_URI = "myapp://auth"
-        
-        // Your Cognito config - update these!
-        private const val API_URL = ""
-        private const val COGNITO_DOMAIN = ""
-        private const val COGNITO_CLIENT_ID = ""
+        private const val API_URL = "https://kt3jbe9ag3.execute-api.us-east-1.amazonaws.com"
+        private const val COGNITO_DOMAIN = "https://myapp-dev-021891593136.auth.us-east-1.amazoncognito.com"
+        private const val COGNITO_CLIENT_ID = "2md4vst22p244mt431can1dvvf"
     }
     
-    private var authCode: String? by mutableStateOf(null)
+    private var isLoggedIn by mutableStateOf(false)
+    private var userName by mutableStateOf<String?>(null)
+    private var userEmail by mutableStateOf<String?>(null)
+    private var isLoading by mutableStateOf(false)
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,12 +50,27 @@ class MainActivity : ComponentActivity() {
             cognitoClientId = COGNITO_CLIENT_ID
         ))
         
-        // Handle OAuth redirect if launched with auth code
+        // Check if already authenticated
+        if (isAuthenticated()) {
+            try {
+                val user = getCurrentUser()
+                userName = user.name
+                userEmail = user.email
+                isLoggedIn = true
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get user", e)
+            }
+        }
+        
         handleIntent(intent)
         
         setContent {
-            TrialstreamTheme {
+            myappTheme {
                 MainScreen(
+                    isLoggedIn = isLoggedIn,
+                    userName = userName,
+                    userEmail = userEmail,
+                    isLoading = isLoading,
                     onLoginClick = { startOAuthFlow() },
                     onLogoutClick = { logout() }
                 )
@@ -67,11 +85,70 @@ class MainActivity : ComponentActivity() {
     
     private fun handleIntent(intent: Intent?) {
         val uri = intent?.data
-        if (uri != null && uri.scheme == "trialstream" && uri.host == "auth") {
+        if (uri != null && uri.scheme == "myapp" && uri.host == "auth") {
             val code = uri.getQueryParameter("code")
             if (code != null) {
                 Log.d(TAG, "Received auth code")
-                authCode = code
+                exchangeCodeForTokens(code)
+            }
+        }
+    }
+    
+    private fun exchangeCodeForTokens(code: String) {
+        isLoading = true
+        
+        kotlinx.coroutines.GlobalScope.launch {
+            try {
+                val tokenEndpoint = getTokenEndpoint()
+                val tokenUrl = URL(tokenEndpoint)
+                val postData = "grant_type=authorization_code" +
+                    "&client_id=${URLEncoder.encode(COGNITO_CLIENT_ID, "UTF-8")}" +
+                    "&code=${URLEncoder.encode(code, "UTF-8")}" +
+                    "&redirect_uri=${URLEncoder.encode(REDIRECT_URI, "UTF-8")}"
+                
+                val connection = withContext(Dispatchers.IO) {
+                    (tokenUrl.openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                        doOutput = true
+                        outputStream.write(postData.toByteArray())
+                    }
+                }
+                
+                val response = withContext(Dispatchers.IO) {
+                    connection.inputStream.bufferedReader().readText()
+                }
+                
+                Log.d(TAG, "Token response received")
+                val json = JSONObject(response)
+                
+                val expiresIn = json.optLong("expires_in", 3600)
+                val expiresAt = (System.currentTimeMillis() / 1000) + expiresIn
+                
+                // Store tokens in Rust core
+                setAuthTokens(AuthTokens(
+                    accessToken = json.getString("access_token"),
+                    idToken = json.getString("id_token"),
+                    refreshToken = json.optString("refresh_token", null),
+                    expiresAt = expiresAt.toULong()
+                ))
+                
+                // Get user from Rust core
+                val user = getCurrentUser()
+                
+                withContext(Dispatchers.Main) {
+                    userName = user.name
+                    userEmail = user.email
+                    isLoggedIn = true
+                    isLoading = false
+                }
+                
+                Log.d(TAG, "Logged in as: $userName ($userEmail)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Token exchange failed", e)
+                withContext(Dispatchers.Main) {
+                    isLoading = false
+                }
             }
         }
     }
@@ -90,33 +167,21 @@ class MainActivity : ComponentActivity() {
     
     private fun logout() {
         clearAuth()
+        isLoggedIn = false
+        userName = null
+        userEmail = null
     }
 }
 
 @Composable
 fun MainScreen(
+    isLoggedIn: Boolean,
+    userName: String?,
+    userEmail: String?,
+    isLoading: Boolean,
     onLoginClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
-    var isAuthenticated by remember { mutableStateOf(isAuthenticated()) }
-    var user by remember { mutableStateOf<User?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    
-    val scope = rememberCoroutineScope()
-    
-    // Check auth state
-    LaunchedEffect(Unit) {
-        isAuthenticated = isAuthenticated()
-        if (isAuthenticated) {
-            try {
-                user = getCurrentUser()
-            } catch (e: Exception) {
-                Log.e("Trialstream", "Failed to get user", e)
-            }
-        }
-    }
-    
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         Column(
             modifier = Modifier
@@ -127,51 +192,51 @@ fun MainScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Trialstream",
+                text = "myapp",
                 style = MaterialTheme.typography.headlineLarge
             )
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            if (isLoading) {
-                CircularProgressIndicator()
-            } else if (isAuthenticated && user != null) {
-                // Logged in state
-                Text(
-                    text = "Welcome!",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = user?.email ?: "Unknown",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = {
-                    onLogoutClick()
-                    isAuthenticated = false
-                    user = null
-                }) {
-                    Text("Sign Out")
+            when {
+                isLoading -> {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Signing in...")
                 }
-            } else {
-                // Logged out state
-                Text(
-                    text = "Sign in to continue",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = onLoginClick) {
-                    Text("Sign in with Google")
+                isLoggedIn -> {
+                    Text(
+                        text = "Welcome!",
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    userName?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    userEmail?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(onClick = onLogoutClick) {
+                        Text("Sign Out")
+                    }
                 }
-            }
-            
-            error?.let {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error
-                )
+                else -> {
+                    Text(
+                        text = "Sign in to continue",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(onClick = onLoginClick) {
+                        Text("Sign in with Google")
+                    }
+                }
             }
         }
     }
