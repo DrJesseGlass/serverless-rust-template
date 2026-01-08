@@ -106,13 +106,15 @@ resource "aws_cognito_user_pool_client" "frontend" {
     "https://${aws_cloudfront_distribution.frontend.domain_name}",
     "https://${aws_cloudfront_distribution.frontend.domain_name}/callback",
     "http://localhost:5173",
-    "http://localhost:5173/callback"
+    "http://localhost:5173/callback",
+    "myapp://auth"
   ]
-  
+
   logout_urls = [
     "https://${aws_cloudfront_distribution.frontend.domain_name}",
-    "http://localhost:5173"
-  ]
+    "http://localhost:5173",
+    "myapp://auth"
+  ]  
 
   # Supported identity providers
   supported_identity_providers = ["COGNITO", "Google"]
