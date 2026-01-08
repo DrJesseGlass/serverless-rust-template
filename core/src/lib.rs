@@ -34,10 +34,10 @@ pub enum CoreError {
     NotAuthenticated,
     #[error("Token expired")]
     TokenExpired,
-    #[error("Network error: {message}")]
-    Network { message: String },
-    #[error("Invalid response: {message}")]
-    InvalidResponse { message: String },
+    #[error("Network error: {msg}")]
+    Network { msg: String },
+    #[error("Invalid response: {msg}")]
+    InvalidResponse { msg: String },
 }
 
 /// Global auth state (simple for now)
@@ -85,37 +85,34 @@ pub fn is_authenticated() -> bool {
 pub fn get_current_user() -> Result<User, CoreError> {
     let state = AUTH_STATE.read().unwrap();
     let tokens = state.as_ref().ok_or(CoreError::NotAuthenticated)?;
-    
+
     // Parse JWT payload (base64 decode middle section)
     let parts: Vec<&str> = tokens.id_token.split('.').collect();
     if parts.len() != 3 {
-        return Err(CoreError::InvalidResponse { 
-            message: "Invalid token format".into() 
+        return Err(CoreError::InvalidResponse {
+            msg: "Invalid token format".into(),
         });
     }
-    
+
     // Decode base64 (JWT uses base64url)
-    let payload = parts[1]
-        .replace('-', "+")
-        .replace('_', "/");
-    
+    let payload = parts[1].replace('-', "+").replace('_', "/");
+
     // Add padding if needed
     let padded = match payload.len() % 4 {
         2 => format!("{}==", payload),
         3 => format!("{}=", payload),
         _ => payload,
     };
-    
-    let decoded = base64_decode(&padded)
-        .map_err(|_| CoreError::InvalidResponse { 
-            message: "Failed to decode token".into() 
+
+    let decoded = base64_decode(&padded).map_err(|_| CoreError::InvalidResponse {
+        msg: "Failed to decode token".into(),
+    })?;
+
+    let claims: serde_json::Value =
+        serde_json::from_slice(&decoded).map_err(|_| CoreError::InvalidResponse {
+            msg: "Failed to parse token".into(),
         })?;
-    
-    let claims: serde_json::Value = serde_json::from_slice(&decoded)
-        .map_err(|_| CoreError::InvalidResponse { 
-            message: "Failed to parse token".into() 
-        })?;
-    
+
     Ok(User {
         id: claims["sub"].as_str().unwrap_or("").to_string(),
         email: claims["email"].as_str().map(String::from),
@@ -127,10 +124,10 @@ pub fn get_current_user() -> Result<User, CoreError> {
 #[uniffi::export]
 pub fn get_auth_url(redirect_uri: String) -> Result<String, CoreError> {
     let cfg = CONFIG.read().unwrap();
-    let config = cfg.as_ref().ok_or(CoreError::InvalidResponse { 
-        message: "SDK not initialized".into() 
+    let config = cfg.as_ref().ok_or(CoreError::InvalidResponse {
+        msg: "SDK not initialized".into(),
     })?;
-    
+
     Ok(format!(
         "{}/oauth2/authorize?client_id={}&response_type=code&scope=openid+email+profile&redirect_uri={}",
         config.cognito_domain,
@@ -143,10 +140,10 @@ pub fn get_auth_url(redirect_uri: String) -> Result<String, CoreError> {
 #[uniffi::export]
 pub fn get_token_endpoint() -> Result<String, CoreError> {
     let cfg = CONFIG.read().unwrap();
-    let config = cfg.as_ref().ok_or(CoreError::InvalidResponse { 
-        message: "SDK not initialized".into() 
+    let config = cfg.as_ref().ok_or(CoreError::InvalidResponse {
+        msg: "SDK not initialized".into(),
     })?;
-    
+
     Ok(format!("{}/oauth2/token", config.cognito_domain))
 }
 
@@ -154,10 +151,10 @@ pub fn get_token_endpoint() -> Result<String, CoreError> {
 #[uniffi::export]
 pub fn get_api_url() -> Result<String, CoreError> {
     let cfg = CONFIG.read().unwrap();
-    let config = cfg.as_ref().ok_or(CoreError::InvalidResponse { 
-        message: "SDK not initialized".into() 
+    let config = cfg.as_ref().ok_or(CoreError::InvalidResponse {
+        msg: "SDK not initialized".into(),
     })?;
-    
+
     Ok(config.api_url.clone())
 }
 
@@ -166,29 +163,31 @@ pub fn get_api_url() -> Result<String, CoreError> {
 pub fn get_access_token() -> Result<String, CoreError> {
     let state = AUTH_STATE.read().unwrap();
     let tokens = state.as_ref().ok_or(CoreError::NotAuthenticated)?;
-    
+
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     if tokens.expires_at <= now {
         return Err(CoreError::TokenExpired);
     }
-    
+
     Ok(tokens.access_token.clone())
 }
 
 // Simple base64 decode (no external dependency)
 fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
     const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    
+
     let mut output = Vec::new();
     let mut buf = 0u32;
     let mut bits = 0;
-    
+
     for c in input.bytes() {
-        if c == b'=' { break; }
+        if c == b'=' {
+            break;
+        }
         let val = CHARS.iter().position(|&x| x == c).ok_or(())? as u32;
         buf = (buf << 6) | val;
         bits += 6;
@@ -197,6 +196,6 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
             output.push((buf >> bits) as u8);
         }
     }
-    
+
     Ok(output)
 }
