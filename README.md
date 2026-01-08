@@ -1,31 +1,148 @@
 # Serverless Rust Template
 
-A production-ready, full-stack serverless template with:
+A production-ready, full-stack serverless template with native mobile apps sharing a Rust core.
 
-- **Frontend:** React + TypeScript + Tailwind → S3 + CloudFront
-- **Backend:** Rust Lambdas (ARM64) → API Gateway
-- **Database:** DynamoDB (pay-per-request, scales to zero)
-- **Storage:** S3
-- **IaC:** Terraform
-- **CI/CD:** GitHub Actions with OIDC (no stored AWS secrets!)
+## Why This Architecture?
+
+**Shared Rust Core:** Business logic is written once in Rust and compiled to:
+- Native Android library (`.so` via NDK)
+- Native iOS library (`.a` via Xcode)
+- WebAssembly (for web, optional)
+- Lambda functions (backend)
+
+This eliminates code duplication across platforms while maintaining native performance.
+
+**Serverless Backend:** AWS Lambda with Rust provides ~10-15ms cold starts and near-zero cost when idle—perfect for apps that need to scale from 0 to millions of users.
+
+**UniFFI Bindings:** Mozilla's UniFFI generates type-safe bindings from Rust to Kotlin/Swift automatically. You define the interface once in a `.udl` file.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Shared Rust Core                         │
+│              (Authentication, API client, business logic)       │
+│                         core/src/lib.rs                         │
+└─────────────────┬───────────────────────────┬───────────────────┘
+                  │                           │
+        ┌─────────▼─────────┐       ┌─────────▼─────────┐
+        │   Android App     │       │     iOS App       │
+        │  (Kotlin/Compose) │       │   (Swift/SwiftUI) │
+        │   via UniFFI/JNI  │       │    via UniFFI     │
+        └───────────────────┘       └───────────────────┘
+                  │                           │
+                  └───────────┬───────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         AWS Backend                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
+│  │ Cognito  │  │   API    │  │  Lambda  │  │    DynamoDB      │ │
+│  │  (Auth)  │  │ Gateway  │  │  (Rust)  │  │    (Data)        │ │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
+│  ┌──────────┐  ┌──────────┐                                     │
+│  │    S3    │  │CloudFront│  ← React Frontend                   │
+│  │(Storage) │  │  (CDN)   │                                     │
+│  └──────────┘  └──────────┘                                     │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Features
 
 - 🦀 **Rust Lambda** — ~10-15ms cold starts, low memory, low cost
-- 🔐 **OIDC Authentication** — No AWS credentials stored in GitHub
+- 📱 **Native Mobile** — Android (Kotlin/Compose) + iOS (Swift/SwiftUI)
+- 🔗 **Shared Core** — Write business logic once, run everywhere
+- 🔐 **Cognito Auth** — Google OAuth built-in, extensible to other providers
+- 🔑 **OIDC Authentication** — No AWS credentials stored in GitHub
 - 📦 **Single-table DynamoDB** — Ready for complex access patterns
 - ⚡ **Auto-scaling** — Handles 1 to 10,000+ concurrent users
 - 💰 **Scales to zero** — Near-zero cost when idle
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Web Frontend** | React + TypeScript + Tailwind |
+| **Mobile (Android)** | Kotlin + Jetpack Compose |
+| **Mobile (iOS)** | Swift + SwiftUI |
+| **Shared Core** | Rust + UniFFI |
+| **Backend** | Rust Lambda functions |
+| **Database** | DynamoDB |
+| **Auth** | AWS Cognito + Google OAuth |
+| **Infrastructure** | Terraform |
+| **CI/CD** | GitHub Actions with OIDC |
+
+## Project Structure
+
+```
+.
+├── .github/workflows/
+│   └── deploy.yml              # CI/CD pipeline (OIDC auth)
+├── core/                       # Shared Rust library (UniFFI)
+│   ├── src/
+│   │   ├── lib.rs              # Core logic & FFI exports
+│   │   ├── myapp.udl           # UniFFI interface definition
+│   │   └── bin/uniffi-bindgen.rs
+│   ├── bindings/               # Generated bindings (Kotlin/Swift)
+│   └── Cargo.toml
+├── mobile/
+│   └── android/                # Native Android app
+│       ├── app/src/main/
+│       │   ├── java/.../MainActivity.kt
+│       │   ├── jniLibs/        # Compiled Rust .so files
+│       │   └── AndroidManifest.xml
+│       └── build.gradle.kts
+├── frontend/                   # React + Vite + Tailwind
+│   ├── src/
+│   │   ├── App.tsx
+│   │   └── auth/               # Auth context & components
+│   └── package.json
+├── lambdas/                    # Rust Lambda workspace
+│   ├── api-handler/
+│   │   └── src/
+│   │       ├── main.rs
+│   │       └── auth.rs         # JWT validation
+│   └── shared/
+│       └── src/
+│           ├── config.rs
+│           └── models.rs
+└── infra/                      # Terraform
+    ├── main.tf
+    ├── backend.tf
+    ├── auth.tf                 # Cognito + Google OAuth
+    ├── api.tf
+    ├── data.tf
+    └── github-oidc.tf
+```
+
+---
 
 ## Quick Start
 
 ### Prerequisites
 
+**All platforms:**
 - [Rust](https://rustup.rs/)
 - [cargo-lambda](https://www.cargo-lambda.info/guide/installation.html): `brew tap cargo-lambda/cargo-lambda && brew install cargo-lambda`
 - [Node.js 18+](https://nodejs.org/)
 - [Terraform 1.5+](https://www.terraform.io/downloads)
 - [AWS CLI v2](https://aws.amazon.com/cli/)
+
+**Android development:**
+- [Android Studio](https://developer.android.com/studio) (for SDK & NDK)
+- Java 17+: `brew install openjdk@17`
+- Rust Android targets:
+  ```bash
+  rustup target add aarch64-linux-android armv7-linux-androideabi
+  cargo install cargo-ndk
+  ```
+- Android NDK: Android Studio → Settings → SDK Tools → NDK (Side by side)
+
+**iOS development:**
+- Xcode 15+
+- Rust iOS targets:
+  ```bash
+  rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+  ```
 
 ### 1. Use This Template
 
@@ -74,7 +191,19 @@ variable "project_name" {
 -var="terraform_state_bucket=YOUR-PROJECT-tfstate-XXXXX"
 ```
 
-### 4. First Deploy (Local)
+### 4. Set Up Google OAuth (Optional but Recommended)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing
+3. Enable OAuth consent screen (External, add test users)
+4. Create OAuth 2.0 credentials (Web application)
+5. Note the Client ID and Client Secret
+
+Add to GitHub Secrets:
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
+### 5. First Deploy (Local)
 
 ```bash
 # Build Lambda
@@ -87,26 +216,43 @@ cd ../../../..
 # Deploy infrastructure
 cd infra
 terraform init
-terraform apply
+terraform apply \
+  -var="google_client_id=YOUR_GOOGLE_CLIENT_ID" \
+  -var="google_client_secret=YOUR_GOOGLE_CLIENT_SECRET"
 ```
 
 Save the outputs:
 - `cloudfront_url` — Your frontend
 - `api_url` — Your API
+- `cognito_domain` — Auth endpoint
+- `cognito_client_id` — For mobile apps
 - `github_actions_role_arn` — For GitHub Actions
 
-### 5. Configure GitHub Actions
+### 6. Configure GitHub Actions
 
-1. Go to your repo → **Settings** → **Secrets and variables** → **Actions**
-2. Add secret:
-   - Name: `AWS_ROLE_ARN`
-   - Value: `github_actions_role_arn` from Terraform output
+Go to your repo → **Settings** → **Secrets and variables** → **Actions**
 
-### 6. Update Frontend API URL
+Add secrets:
+- `AWS_ROLE_ARN` — `github_actions_role_arn` from Terraform output
+- `GOOGLE_CLIENT_ID` — From Google Cloud Console
+- `GOOGLE_CLIENT_SECRET` — From Google Cloud Console
 
-Edit `frontend/.env.production`:
+### 7. Update Frontend & Mobile Config
+
+**`frontend/.env.production`**
 ```
 VITE_API_URL=https://xxxxx.execute-api.us-east-1.amazonaws.com
+VITE_COGNITO_DOMAIN=https://myapp-dev-xxxxx.auth.us-east-1.amazoncognito.com
+VITE_COGNITO_CLIENT_ID=xxxxx
+```
+
+**`mobile/android/app/src/main/java/.../MainActivity.kt`**
+```kotlin
+companion object {
+    private const val API_URL = "https://xxxxx.execute-api.us-east-1.amazonaws.com"
+    private const val COGNITO_DOMAIN = "https://myapp-dev-xxxxx.auth.us-east-1.amazoncognito.com"
+    private const val COGNITO_CLIENT_ID = "xxxxx"
+}
 ```
 
 Commit and push—GitHub Actions will deploy automatically.
@@ -115,78 +261,262 @@ Commit and push—GitHub Actions will deploy automatically.
 
 ## Local Development
 
-### Backend
+### Backend (Rust Lambda)
 
 ```bash
 cd lambdas
 cargo lambda watch
 
-# Test
+# Test endpoints
 curl http://localhost:9000/lambda-url/api-handler/health
+curl http://localhost:9000/lambda-url/api-handler/items
 ```
 
-### Frontend
+### Web Frontend (React)
 
 ```bash
 cd frontend
 npm install
 npm run dev
+# Opens http://localhost:5173
+```
+
+### Rust Core (Shared Library)
+
+```bash
+cd core
+cargo build
+cargo test
+```
+
+### Android App
+
+#### First-time setup
+
+1. Set NDK path:
+   ```bash
+   export ANDROID_NDK_HOME=~/Library/Android/sdk/ndk/<version>
+   ```
+
+2. Build Rust core for Android:
+   ```bash
+   cd core
+   cargo ndk -t arm64-v8a -t armeabi-v7a build --release
+   ```
+
+3. Generate Kotlin bindings:
+   ```bash
+   cargo run --features cli --bin uniffi-bindgen generate \
+     --library target/aarch64-linux-android/release/libmyapp.so \
+     --language kotlin --out-dir ./bindings
+   ```
+
+4. Copy artifacts to Android project:
+   ```bash
+   cp bindings/uniffi/myapp/myapp.kt \
+     ../mobile/android/app/src/main/java/uniffi/myapp/
+   cp target/aarch64-linux-android/release/libmyapp.so \
+     ../mobile/android/app/src/main/jniLibs/arm64-v8a/
+   cp target/armv7-linux-androideabi/release/libmyapp.so \
+     ../mobile/android/app/src/main/jniLibs/armeabi-v7a/
+   ```
+
+#### Build & Run
+
+Connect an Android device with USB debugging enabled:
+
+```bash
+cd mobile/android
+
+# Build debug APK
+./gradlew assembleDebug
+
+# Build and install on connected device
+./gradlew installDebug
+
+# View logs
+~/Library/Android/sdk/platform-tools/adb logcat | grep -E "(Myapp|AndroidRuntime)"
+```
+
+#### After Rust Core Changes
+
+```bash
+# Rebuild script (run from project root)
+cd core
+cargo ndk -t arm64-v8a -t armeabi-v7a build --release
+cargo run --features cli --bin uniffi-bindgen generate \
+  --library target/aarch64-linux-android/release/libmyapp.so \
+  --language kotlin --out-dir ./bindings
+cp bindings/uniffi/myapp/myapp.kt \
+  ../mobile/android/app/src/main/java/uniffi/myapp/
+cp target/aarch64-linux-android/release/libmyapp.so \
+  ../mobile/android/app/src/main/jniLibs/arm64-v8a/
+cp target/armv7-linux-androideabi/release/libmyapp.so \
+  ../mobile/android/app/src/main/jniLibs/armeabi-v7a/
+cd ../mobile/android
+./gradlew installDebug
 ```
 
 ---
 
-## Project Structure
+## Authentication Flow
+
+### Mobile (OAuth with PKCE)
 
 ```
-.
-├── .github/workflows/
-│   └── deploy.yml          # CI/CD pipeline (OIDC auth)
-├── frontend/               # React + Vite + Tailwind
-│   ├── src/
-│   │   ├── App.tsx         # Main component
-│   │   └── main.tsx
-│   └── package.json
-├── infra/                  # Terraform
-│   ├── main.tf             # Provider config
-│   ├── backend.tf          # S3 state backend
-│   ├── variables.tf        # Configuration variables
-│   ├── outputs.tf          # Output values
-│   ├── frontend.tf         # S3 + CloudFront
-│   ├── api.tf              # Lambda + API Gateway
-│   ├── data.tf             # DynamoDB + S3 storage
-│   ├── lambda-role.tf      # Lambda IAM role
-│   └── github-oidc.tf      # GitHub Actions OIDC
-└── lambdas/                # Rust workspace
-    ├── Cargo.toml
-    ├── api-handler/        # Main API Lambda
-    │   └── src/
-    │       ├── main.rs     # Router + handlers
-    │       └── routes/
-    └── shared/             # Shared library
-        └── src/
-            ├── config.rs   # Environment config
-            └── models.rs   # Data models
+┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+│  Mobile  │     │ Browser  │     │ Cognito  │     │  Google  │
+│   App    │     │ (Custom  │     │          │     │          │
+│          │     │   Tab)   │     │          │     │          │
+└────┬─────┘     └────┬─────┘     └────┬─────┘     └────┬─────┘
+     │                │                │                │
+     │ 1. Open auth URL               │                │
+     │───────────────>│                │                │
+     │                │ 2. Redirect    │                │
+     │                │───────────────>│                │
+     │                │                │ 3. Google OAuth│
+     │                │                │───────────────>│
+     │                │                │<───────────────│
+     │                │ 4. Redirect with code           │
+     │<───────────────│ (myapp://auth?code=xxx)         │
+     │                │                │                │
+     │ 5. Exchange code for tokens    │                │
+     │────────────────────────────────>│                │
+     │<────────────────────────────────│                │
+     │ (access_token, id_token)        │                │
+     │                │                │                │
+     │ 6. Store tokens in Rust core   │                │
+     │ 7. Parse user from JWT          │                │
+```
+
+### Web (Similar flow with redirect)
+
+The web app uses the same Cognito endpoints but redirects to the web URL instead of a custom scheme.
+
+---
+
+## Rust Core (UniFFI)
+
+The `core/` crate provides shared functionality across all platforms.
+
+### Exported Functions
+
+| Function | Description |
+|----------|-------------|
+| `initialize(config)` | Set API and Cognito configuration |
+| `set_auth_tokens(tokens)` | Store tokens after OAuth flow |
+| `clear_auth()` | Clear stored tokens (logout) |
+| `is_authenticated()` | Check if valid tokens exist |
+| `get_current_user()` | Parse user info from stored ID token |
+| `get_auth_url(redirect)` | Build OAuth authorization URL |
+| `get_token_endpoint()` | Get Cognito token endpoint URL |
+| `get_api_url()` | Get configured API base URL |
+| `get_access_token()` | Get token for authenticated API calls |
+
+### Adding New Functions
+
+1. **Add Rust function** in `core/src/lib.rs`:
+   ```rust
+   #[uniffi::export]
+   pub fn my_new_function(input: String) -> Result<String, CoreError> {
+       // Implementation
+       Ok(format!("Processed: {}", input))
+   }
+   ```
+
+2. **Update UDL** in `core/src/myapp.udl`:
+   ```
+   namespace myapp {
+     // ... existing functions ...
+     [Throws=CoreError]
+     string my_new_function(string input);
+   };
+   ```
+
+3. **Rebuild bindings** (see "After Rust Core Changes" above)
+
+4. **Use in Kotlin**:
+   ```kotlin
+   import uniffi.myapp.*
+   
+   val result = myNewFunction("hello")
+   ```
+
+5. **Use in Swift**:
+   ```swift
+   import Myapp
+   
+   let result = try myNewFunction(input: "hello")
+   ```
+
+### Error Handling
+
+Define errors in Rust:
+```rust
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum CoreError {
+    #[error("Not authenticated")]
+    NotAuthenticated,
+    #[error("Network error: {msg}")]
+    Network { msg: String },
+}
+```
+
+> ⚠️ **Note:** Avoid using `message` as a field name—it conflicts with Kotlin's `Throwable.message`. Use `msg` instead.
+
+---
+
+## Adding Mobile OAuth Redirect
+
+When setting up a new project, add your mobile redirect URI to Cognito:
+
+**`infra/auth.tf`**
+```hcl
+callback_urls = [
+  "https://${aws_cloudfront_distribution.frontend.domain_name}",
+  "http://localhost:5173",
+  "myapp://auth"  # Mobile deep link
+]
+
+logout_urls = [
+  "https://${aws_cloudfront_distribution.frontend.domain_name}",
+  "http://localhost:5173",
+  "myapp://auth"
+]
+```
+
+The mobile app's `AndroidManifest.xml` registers to handle `myapp://auth`:
+```xml
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="myapp" android:host="auth" />
+</intent-filter>
 ```
 
 ---
 
-## Architecture
+## Deployment
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  CloudFront │────▶│     S3      │     │  DynamoDB   │
-│    (CDN)    │     │  (Frontend) │     │  (Database) │
-└─────────────┘     └─────────────┘     └──────▲──────┘
-                                               │
-┌─────────────┐     ┌─────────────┐     ┌──────┴──────┐
-│   Browser   │────▶│ API Gateway │────▶│   Lambda    │
-│             │     │   (HTTP)    │     │   (Rust)    │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                               │
-                                        ┌──────▼──────┐
-                                        │     S3      │
-                                        │  (Storage)  │
-                                        └─────────────┘
+### Automatic (GitHub Actions)
+
+Push to `main` triggers automatic deployment of:
+- ✅ Lambda functions
+- ✅ Web frontend
+- ✅ Infrastructure changes
+
+Mobile apps require manual deployment to app stores.
+
+### Manual Android Release
+
+```bash
+cd mobile/android
+
+# Build release APK (requires signing config)
+./gradlew assembleRelease
+
+# Output: app/build/outputs/apk/release/app-release.apk
 ```
 
 ---
@@ -200,46 +530,28 @@ npm run dev
 | 1,000 | 50-100           | $50-100           |
 | 10,000| 500-1000         | $200-500          |
 
-Default Lambda concurrency limit: 1,000 (can request increase).
+Cognito pricing: First 50,000 MAU free, then $0.0055/user.
 
 ---
 
-## Customization
+## Troubleshooting
 
-### Adding Routes
+### Android: "Library not found"
+Ensure the `.so` files are in the correct jniLibs folders and the library name in Cargo.toml matches what UniFFI expects.
 
-Edit `lambdas/api-handler/src/main.rs`:
-
-```rust
-let response = match (method, path) {
-    ("GET", "/health") => routes::health::handle(state).await,
-    ("GET", "/items") => routes::items::list(state, &request).await,
-    ("POST", "/items") => routes::items::create(state, &request).await,
-    // Add new routes here
-    ("GET", "/users") => routes::users::list(state, &request).await,
-    _ => json_response(404, &ApiResponse::<()>::error("Not found")),
-};
+### Android: "UniFFI API checksum mismatch"
+The Kotlin bindings don't match the compiled library. Regenerate bindings from the same library build:
+```bash
+cargo run --features cli --bin uniffi-bindgen generate \
+  --library target/aarch64-linux-android/release/libmyapp.so \
+  --language kotlin --out-dir ./bindings
 ```
 
-### Adding Models
+### Android: "No connected devices"
+Enable USB debugging: Settings → Developer options → USB debugging. You may need to revoke and re-authorize.
 
-Edit `lambdas/shared/src/models.rs` and create corresponding route handlers.
-
-### Environment Variables
-
-Add to `infra/api.tf` in the Lambda environment block:
-
-```hcl
-environment {
-  variables = {
-    RUST_LOG       = "info"
-    TABLE_NAME     = aws_dynamodb_table.main.name
-    STORAGE_BUCKET = aws_s3_bucket.storage.bucket
-    # Add new vars here
-    MY_NEW_VAR     = "value"
-  }
-}
-```
+### Cognito: "redirect_mismatch"
+Add the redirect URI to both `callback_urls` and `logout_urls` in `infra/auth.tf`, then `terraform apply`.
 
 ---
 
