@@ -1,0 +1,33 @@
+name: myapp
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "16.0"
+
+targets:
+  myapp:
+    type: application
+    platform: iOS
+    sources:
+      - path: myapp/Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.myapp
+        SWIFT_OBJC_BRIDGING_HEADER: myapp/rust/myapp-Bridging-Header.h
+        LIBRARY_SEARCH_PATHS: $(PROJECT_DIR)/myapp/rust
+        INFOPLIST_FILE: myapp/Info.plist
+      configs:
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: -Onone
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: -O
+    dependencies:
+      - framework: myapp/rust/libmyapp.a
+        embed: false
+    info:
+      path: myapp/Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - myapp
+        UILaunchScreen: {}
