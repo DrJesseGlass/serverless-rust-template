@@ -48,6 +48,17 @@ struct ContentView: View {
             }
             
             Button(action: {
+                authManager.switchAccount()
+            }) {
+                Text("Switch Account")
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue.opacity(0.1))
+                    .foregroundColor(.blue)
+                    .cornerRadius(10)
+            }
+            
+            Button(action: {
                 authManager.logout()
             }) {
                 Text("Sign Out")
@@ -62,7 +73,6 @@ struct ContentView: View {
     }
     
     // MARK: - Login View
-    
     private var loginView: some View {
         VStack(spacing: 16) {
             Text("Sign in to continue")
@@ -79,13 +89,21 @@ struct ContentView: View {
                 }) {
                     HStack {
                         Image(systemName: "person.circle.fill")
-                        Text("Sign in with Google")
+                        Text("Sign In / Sign Up")
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(10)
+                }
+                
+                Button(action: {
+                    authManager.switchAccount()
+                }) {
+                    Text("switch users")
+                        .font(.footnote)
+                        .foregroundColor(.blue)
                 }
             }
             
@@ -104,3 +122,4 @@ struct ContentView: View {
     ContentView()
         .environmentObject(AuthManager())
 }
+ 
