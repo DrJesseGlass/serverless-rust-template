@@ -1,0 +1,43 @@
+namespace myapp {
+  void initialize(ApiConfig config);
+  void set_auth_tokens(AuthTokens tokens);
+  void clear_auth();
+  boolean is_authenticated();
+  [Throws=CoreError]
+  User get_current_user();
+  [Throws=CoreError]
+  string get_auth_url(string redirect_uri);
+  [Throws=CoreError]
+  string get_token_endpoint();
+  [Throws=CoreError]
+  string get_api_url();
+  [Throws=CoreError]
+  string get_access_token();
+};
+
+dictionary AuthTokens {
+  string access_token;
+  string id_token;
+  string? refresh_token;
+  u64 expires_at;
+};
+
+dictionary User {
+  string id;
+  string? email;
+  string? name;
+};
+
+dictionary ApiConfig {
+  string api_url;
+  string cognito_domain;
+  string cognito_client_id;
+};
+
+[Error]
+enum CoreError {
+  "NotAuthenticated",
+  "TokenExpired",
+  "Network",
+  "InvalidResponse",
+};
