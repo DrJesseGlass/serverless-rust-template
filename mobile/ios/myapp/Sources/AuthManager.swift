@@ -198,3 +198,63 @@ private struct TokenResponse: Decodable {
     let refresh_token: String?
     let expires_in: Int?
 }
+
+// MARK: - Switch Account (forces fresh login)
+
+extension AuthManager {
+    func switchAccount() {
+        // Don't clear auth yet - wait for successful login
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let authUrlString = try getAuthUrl(redirectUri: redirectUri)
+            guard let authUrl = URL(string: authUrlString) else {
+                errorMessage = "Invalid auth URL"
+                isLoading = false
+                return
+            }
+            
+            webAuthSession = ASWebAuthenticationSession(
+                url: authUrl,
+                callbackURLScheme: "trialstream"
+            ) { [weak self] callbackURL, error in
+                Task { @MainActor in
+                    self?.isLoading = false
+                    
+                    if let error = error as? ASWebAuthenticationSessionError,
+                       error.code == .canceledLogin {
+                        // User cancelled - keep existing session intact
+                        return
+                    }
+                    
+                    if let error = error {
+                        self?.errorMessage = "Auth error: \(error.localizedDescription)"
+                        // Keep existing session on error
+                        return
+                    }
+                    
+                    guard let url = callbackURL,
+                          let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                          let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+                        self?.errorMessage = "No auth code received"
+                        return
+                    }
+                    
+                    // Clear old session only after we have a new auth code
+                    clearAuth()
+                    
+                    await self?.exchangeCodeForTokens(code: code)
+                }
+            }
+            
+            webAuthSession?.presentationContextProvider = self
+            webAuthSession?.prefersEphemeralWebBrowserSession = true
+            webAuthSession?.start()
+            
+        } catch {
+            errorMessage = "Failed to start auth: \(error.localizedDescription)"
+            isLoading = false
+        }
+    }
+}
