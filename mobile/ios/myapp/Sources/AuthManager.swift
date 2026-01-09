@@ -111,8 +111,15 @@ class AuthManager: NSObject, ObservableObject {
                 "redirect_uri": redirectUri
             ]
             
+            var allowedCharacters = CharacterSet.alphanumerics
+            allowedCharacters.insert(charactersIn: "-._~")  // RFC 3986 unreserved
+
             let bodyString = bodyParams
-                .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
+                .map { key, value in
+                    let encodedKey = key.addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? key
+                    let encodedValue = value.addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? value
+                    return "\(encodedKey)=\(encodedValue)"
+                }
                 .joined(separator: "&")
             
             request.httpBody = bodyString.data(using: .utf8)
