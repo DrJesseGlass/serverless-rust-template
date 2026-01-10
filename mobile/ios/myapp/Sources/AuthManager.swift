@@ -111,8 +111,15 @@ class AuthManager: NSObject, ObservableObject {
                 "redirect_uri": redirectUri
             ]
             
+            var allowedCharacters = CharacterSet.alphanumerics
+            allowedCharacters.insert(charactersIn: "-._~")  // RFC 3986 unreserved
+
             let bodyString = bodyParams
-                .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
+                .map { key, value in
+                    let encodedKey = key.addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? key
+                    let encodedValue = value.addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? value
+                    return "\(encodedKey)=\(encodedValue)"
+                }
                 .joined(separator: "&")
             
             request.httpBody = bodyString.data(using: .utf8)
@@ -197,4 +204,64 @@ private struct TokenResponse: Decodable {
     let id_token: String
     let refresh_token: String?
     let expires_in: Int?
+}
+
+// MARK: - Switch Account (forces fresh login)
+
+extension AuthManager {
+    func switchAccount() {
+        // Don't clear auth yet - wait for successful login
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let authUrlString = try getAuthUrl(redirectUri: redirectUri)
+            guard let authUrl = URL(string: authUrlString) else {
+                errorMessage = "Invalid auth URL"
+                isLoading = false
+                return
+            }
+            
+            webAuthSession = ASWebAuthenticationSession(
+                url: authUrl,
+                callbackURLScheme: "trialstream"
+            ) { [weak self] callbackURL, error in
+                Task { @MainActor in
+                    self?.isLoading = false
+                    
+                    if let error = error as? ASWebAuthenticationSessionError,
+                       error.code == .canceledLogin {
+                        // User cancelled - keep existing session intact
+                        return
+                    }
+                    
+                    if let error = error {
+                        self?.errorMessage = "Auth error: \(error.localizedDescription)"
+                        // Keep existing session on error
+                        return
+                    }
+                    
+                    guard let url = callbackURL,
+                          let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                          let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+                        self?.errorMessage = "No auth code received"
+                        return
+                    }
+                    
+                    // Clear old session only after we have a new auth code
+                    clearAuth()
+                    
+                    await self?.exchangeCodeForTokens(code: code)
+                }
+            }
+            
+            webAuthSession?.presentationContextProvider = self
+            webAuthSession?.prefersEphemeralWebBrowserSession = true
+            webAuthSession?.start()
+            
+        } catch {
+            errorMessage = "Failed to start auth: \(error.localizedDescription)"
+            isLoading = false
+        }
+    }
 }
